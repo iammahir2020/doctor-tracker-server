@@ -8,7 +8,7 @@ import { assertActiveLookup } from './lookups.routes.js';
  * transaction with the matching `$inc`, so doctor.patientCount never drifts from the real count.
  */
 
-export type PatientInput = {
+type PatientInput = {
   name: string;
   dateOfBirth: Date;
   gender: (typeof GENDERS)[number];

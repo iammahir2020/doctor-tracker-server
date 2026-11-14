@@ -3,7 +3,7 @@ import jwt, { type SignOptions } from 'jsonwebtoken';
 import { z } from 'zod';
 import { env } from './env.js';
 
-export type ErrorCode =
+type ErrorCode =
   | 'VALIDATION_ERROR'
   | 'UNAUTHENTICATED'
   | 'FORBIDDEN'
@@ -35,7 +35,7 @@ export function archivedError() {
 
 // ---------- pagination + search ----------
 
-export const MAX_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 50;
 
 /** One-line labels (names, hospitals): no real one contains < or >, so markup is rejected outright. */
 export function plainText(label: string, min: number, max: number) {
@@ -88,7 +88,7 @@ export function pageMeta(page: number, pageSize: number, total: number) {
   return { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
 }
 
-export function escapeRegex(value: string): string {
+function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
@@ -106,7 +106,7 @@ export const AUTH_COOKIE = 'dt_token';
 
 export type Role = 'admin' | 'staff';
 // ver must match the user's tokenVersion; bumping it (on a password change) ends every older session.
-export type TokenPayload = { sub: string; role: Role; ver: number };
+type TokenPayload = { sub: string; role: Role; ver: number };
 
 export function signToken(payload: TokenPayload): { token: string; maxAgeMs: number } {
   const token = jwt.sign(payload, env.JWT_SECRET, {
