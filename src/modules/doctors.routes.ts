@@ -9,7 +9,7 @@ import {
   listQuery,
   objectId,
   pageMeta,
-  prefixRegex,
+  containsRegex,
   showArchived,
 } from '../lib.js';
 import { requireAuth, requireRole, validate } from '../middleware.js';
@@ -67,11 +67,11 @@ doctorsRouter.get('/', validate({ query: listDoctorsQuery }), async (req, res) =
   };
 
   if (q.search) {
-    const rx = prefixRegex(q.search);
+    const rx = containsRegex(q.search);
     filter.$or = [{ nameLower: rx }, { emailLower: rx }];
   }
   if (q.specialization?.length) filter.specialization = { $in: q.specialization };
-  if (q.hospital) filter.hospitalLower = prefixRegex(q.hospital);
+  if (q.hospital) filter.hospitalLower = containsRegex(q.hospital);
   if (q.createdFrom || q.createdTo) {
     filter.createdAt = {
       ...(q.createdFrom && { $gte: q.createdFrom }),

@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import { Router } from 'express';
 import type { QueryFilter } from 'mongoose';
 import { z } from 'zod';
-import { AppError, idParams, listQuery, pageMeta, prefixRegex, showArchived } from '../lib.js';
+import { AppError, idParams, listQuery, pageMeta, containsRegex, showArchived } from '../lib.js';
 import { requireAuth, requireRole, validate } from '../middleware.js';
 import { UserModel } from '../models.js';
 import { BCRYPT_COST, passwordSchema } from './auth.routes.js';
@@ -44,7 +44,7 @@ usersRouter.get('/', validate({ query: listUsersQuery }), async (req, res) => {
   const q = req.query as unknown as z.infer<typeof listUsersQuery>;
   const filter: QueryFilter<typeof UserModel> = { isArchived: showArchived(req.user, q.archived) };
   if (q.search) {
-    const rx = prefixRegex(q.search);
+    const rx = containsRegex(q.search);
     filter.$or = [{ nameLower: rx }, { emailLower: rx }];
   }
   if (q.role) filter.role = q.role;

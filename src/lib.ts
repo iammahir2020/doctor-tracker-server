@@ -82,9 +82,12 @@ export function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** Anchored, lowercased prefix match for the `*Lower` fields, so Mongo can use the index. */
-export function prefixRegex(term: string): RegExp {
-  return new RegExp(`^${escapeRegex(term.trim().toLowerCase())}`);
+/**
+ * Case-insensitive "contains" match on the `*Lower` fields, escaped so a term can't inject a regex.
+ * Unanchored, so Mongo scans every key of the index (not the documents): fine at this data size.
+ */
+export function containsRegex(term: string): RegExp {
+  return new RegExp(escapeRegex(term.trim().toLowerCase()));
 }
 
 // ---------- auth token + cookie ----------

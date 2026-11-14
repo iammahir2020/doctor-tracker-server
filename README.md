@@ -39,6 +39,7 @@ are marked.
 
 Lists take `search`, filters (e.g. `specialization`, `status`, `minAge`, `admittedFrom`), `sort`,
 `order`, `page`, `pageSize` (max 50), and return `{ data, meta: { page, pageSize, total, totalPages } }`.
+`search` matches any part of the name or email, ignoring case.
 
 Errors always look like `{ "error": { "code", "message", "details" } }`, with codes
 `VALIDATION_ERROR` (400), `UNAUTHENTICATED` / `ACCOUNT_ARCHIVED` (401), `FORBIDDEN` (403),
@@ -57,10 +58,13 @@ and read only the documents they return:
 
 | Query                    | Index                                      | Docs examined / returned |
 | ------------------------ | ------------------------------------------ | ------------------------ |
-| Doctors by name search   | `isArchived_1_nameLower_1`                 | 3 / 3                    |
 | Doctors by patient count | `isArchived_1_patientCount_-1`             | 20 / 20                  |
 | One doctor's patients    | `isArchived_1_doctorId_1_admissionDate_-1` | 20 / 20                  |
 | Patients by status       | `isArchived_1_status_1_admissionDate_-1`   | 20 / 20                  |
 | Patients by age range    | `isArchived_1_dateOfBirth_1`               | 20 / 20                  |
+
+Search is a "contains" match, which can't use an index range: on the seed data a patient search
+reads all ~2,900 active patients (about 70 ms locally), where a prefix match read only the hits.
+That's fine at this size; with much more data I'd move search to Atlas Search.
 
 All indexes are defined in `src/models.ts`.

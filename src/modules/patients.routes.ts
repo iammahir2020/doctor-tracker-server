@@ -9,7 +9,7 @@ import {
   listQuery,
   objectId,
   pageMeta,
-  prefixRegex,
+  containsRegex,
   showArchived,
 } from '../lib.js';
 import { requireAuth, requireRole, validate } from '../middleware.js';
@@ -83,7 +83,7 @@ async function listPatients(req: Request, q: ListPatientsQuery) {
   };
 
   if (q.search) {
-    const rx = prefixRegex(q.search);
+    const rx = containsRegex(q.search);
     filter.$or = [{ nameLower: rx }, { emailLower: rx }];
   }
   if (q.condition?.length) filter.condition = { $in: q.condition };

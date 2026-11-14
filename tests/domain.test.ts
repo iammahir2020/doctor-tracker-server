@@ -274,15 +274,17 @@ describe('list queries', () => {
     expect(res.body.data[0].name).toBe('Young Patient');
   });
 
-  it('searches by name prefix, case-insensitively, without regex injection', async () => {
+  it('searches anywhere in the name, case-insensitively, without regex injection', async () => {
     const res = await staff.get('/api/doctors?search=dr.%20ALI').expect(200);
     expect(res.body.data.map((d: { name: string }) => d.name)).toEqual(['Dr. Alice Smith']);
+    const middle = await staff.get('/api/doctors?search=SMI').expect(200);
+    expect(middle.body.data.map((d: { name: string }) => d.name)).toEqual(['Dr. Alice Smith']);
     const injected = await staff.get('/api/doctors?search=.*').expect(200);
     expect(injected.body.meta.total).toBe(0);
   });
 
-  it('filters doctors by hospital prefix and patient count range', async () => {
-    const res = await staff.get('/api/doctors?hospital=squ&minPatients=2').expect(200);
+  it('filters doctors by part of the hospital name and patient count range', async () => {
+    const res = await staff.get('/api/doctors?hospital=quare&minPatients=2').expect(200);
     expect(res.body.data.map((d: { name: string }) => d.name)).toEqual(['Dr. Alice Smith']);
   });
 
