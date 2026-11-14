@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { AppError, objectId } from '../lib.js';
+import { AppError, objectId, plainText } from '../lib.js';
 import { requireAuth, requireRole, validate } from '../middleware.js';
 import { ConditionModel, SpecializationModel } from '../models.js';
 
@@ -13,7 +13,7 @@ type LookupType = keyof typeof MODELS;
 
 const typeParams = z.object({ type: z.enum(['specializations', 'conditions']) });
 const typeIdParams = typeParams.extend({ id: objectId });
-const nameBody = z.object({ name: z.string().trim().min(1, 'Name is required').max(60) });
+const nameBody = z.object({ name: plainText('Name', 1, 60) });
 
 const PROJECTION = { name: 1, isArchived: 1 } as const;
 

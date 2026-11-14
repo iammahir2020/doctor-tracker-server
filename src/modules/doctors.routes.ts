@@ -3,13 +3,14 @@ import type { QueryFilter } from 'mongoose';
 import { z } from 'zod';
 import {
   AppError,
+  containsRegex,
   csv,
   dateTo,
   idParams,
   listQuery,
   objectId,
   pageMeta,
-  containsRegex,
+  plainText,
   showArchived,
 } from '../lib.js';
 import { requireAuth, requireRole, validate } from '../middleware.js';
@@ -19,9 +20,9 @@ import { archiveDoctor } from './patients.service.js';
 import { doctorPatientsRouter } from './patients.routes.js';
 
 const doctorBody = z.object({
-  name: z.string().trim().min(2, 'Name is required').max(100),
+  name: plainText('Name', 2, 100),
   specialization: objectId,
-  hospital: z.string().trim().min(2, 'Hospital is required').max(120),
+  hospital: plainText('Hospital', 2, 120),
   phone: z
     .string()
     .trim()

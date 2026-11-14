@@ -2,7 +2,15 @@ import bcrypt from 'bcryptjs';
 import { Router } from 'express';
 import type { QueryFilter } from 'mongoose';
 import { z } from 'zod';
-import { AppError, idParams, listQuery, pageMeta, containsRegex, showArchived } from '../lib.js';
+import {
+  AppError,
+  containsRegex,
+  idParams,
+  listQuery,
+  pageMeta,
+  plainText,
+  showArchived,
+} from '../lib.js';
 import { requireAuth, requireRole, validate } from '../middleware.js';
 import { UserModel } from '../models.js';
 import { BCRYPT_COST, passwordSchema } from './auth.routes.js';
@@ -10,7 +18,7 @@ import { BCRYPT_COST, passwordSchema } from './auth.routes.js';
 const ROLES = ['admin', 'staff'] as const;
 
 const createBody = z.object({
-  name: z.string().trim().min(2, 'Name is required').max(100),
+  name: plainText('Name', 2, 100),
   email: z.email().max(254),
   password: passwordSchema,
   role: z.enum(ROLES),

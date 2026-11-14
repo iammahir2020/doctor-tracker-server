@@ -89,6 +89,46 @@ describe('validation', () => {
     expect(res.body.error.code).toBe('CONFLICT');
   });
 
+  it('rejects markup in names, hospitals and lookup names', async () => {
+    const doctor = await admin
+      .post('/api/doctors')
+      .send(
+        doctorBody({ name: '<script>alert(1)</script>', hospital: '<img src=x onerror=alert(1)>' }),
+      )
+      .expect(400);
+    const paths = doctor.body.error.details.map((d: { path: string }) => d.path).sort();
+    expect(paths).toEqual(['hospital', 'name']);
+
+    const doctorId = await createDoctor();
+    await staff
+      .post('/api/patients')
+      .send(patientBody(doctorId, { name: 'Grace <b>Hopper</b>' }))
+      .expect(400);
+    await admin.post('/api/lookups/conditions').send({ name: '<svg onload=alert(1)>' }).expect(400);
+    const user = await admin
+      .post('/api/users')
+      .send({
+        name: '"><script>x</script>',
+        email: 'x@test.dev',
+        password: 'Passw0rd!',
+        role: 'staff',
+      })
+      .expect(400);
+    expect(user.body.error.details).toEqual([
+      expect.objectContaining({ path: 'name', message: "Name can't contain < or >" }),
+    ]);
+  });
+
+  it('keeps free-text notes as data, returned unchanged for the client to escape', async () => {
+    const doctorId = await createDoctor();
+    const notes = 'BP > 140 <script>alert(1)</script>';
+    const id = await createPatient(doctorId, { notes });
+    const res = await staff.get(`/api/patients/${id}`).expect(200);
+    expect(res.body.notes).toBe(notes);
+    expect(res.headers['content-type']).toMatch(/application\/json/);
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+  });
+
   it('caps the page size', async () => {
     await staff.get('/api/doctors?pageSize=500').expect(400);
   });

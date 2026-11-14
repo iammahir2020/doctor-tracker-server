@@ -37,6 +37,16 @@ export function archivedError() {
 
 export const MAX_PAGE_SIZE = 50;
 
+/** One-line labels (names, hospitals): no real one contains < or >, so markup is rejected outright. */
+export function plainText(label: string, min: number, max: number) {
+  return z
+    .string()
+    .trim()
+    .min(min, `${label} is required`)
+    .max(max)
+    .refine((v) => !/[<>]/.test(v), `${label} can't contain < or >`);
+}
+
 export const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'Invalid id');
 
 export const idParams = z.object({ id: objectId });

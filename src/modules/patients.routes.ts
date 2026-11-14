@@ -3,13 +3,14 @@ import type { QueryFilter } from 'mongoose';
 import { z } from 'zod';
 import {
   AppError,
+  containsRegex,
   csv,
   dateTo,
   idParams,
   listQuery,
   objectId,
   pageMeta,
-  containsRegex,
+  plainText,
   showArchived,
 } from '../lib.js';
 import { requireAuth, requireRole, validate } from '../middleware.js';
@@ -19,7 +20,7 @@ import { createPatient, setPatientArchived, updatePatient } from './patients.ser
 const MAX_AGE = 130;
 
 const patientBody = z.object({
-  name: z.string().trim().min(2, 'Name is required').max(100),
+  name: plainText('Name', 2, 100),
   dateOfBirth: z.coerce
     .date()
     .refine((d) => d <= new Date(), 'Date of birth cannot be in the future')
