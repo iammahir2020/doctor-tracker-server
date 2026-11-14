@@ -96,11 +96,11 @@ const doctorSchema = new Schema(
 );
 
 doctorSchema.index({ emailLower: 1 }, { unique: true });
-doctorSchema.index({ isArchived: 1, nameLower: 1 });
-doctorSchema.index({ isArchived: 1, createdAt: -1 });
-doctorSchema.index({ isArchived: 1, specialization: 1, createdAt: -1 });
+doctorSchema.index({ isArchived: 1, nameLower: 1, _id: 1 });
+doctorSchema.index({ isArchived: 1, createdAt: -1, _id: -1 });
+doctorSchema.index({ isArchived: 1, specialization: 1, createdAt: -1, _id: -1 });
 doctorSchema.index({ isArchived: 1, hospitalLower: 1 });
-doctorSchema.index({ isArchived: 1, patientCount: -1 });
+doctorSchema.index({ isArchived: 1, patientCount: -1, _id: -1 });
 
 doctorSchema.pre('validate', function () {
   this.nameLower = this.name.toLowerCase();
@@ -135,13 +135,15 @@ const patientSchema = new Schema(
   schemaOptions,
 );
 
-patientSchema.index({ isArchived: 1, doctorId: 1, admissionDate: -1 });
-patientSchema.index({ isArchived: 1, admissionDate: -1 });
-patientSchema.index({ isArchived: 1, nameLower: 1 });
+// List sorts end with _id as a tie-breaker, so the indexes do too; otherwise Mongo sorts in memory.
+patientSchema.index({ isArchived: 1, doctorId: 1, admissionDate: -1, _id: -1 });
+patientSchema.index({ isArchived: 1, admissionDate: -1, _id: -1 });
+patientSchema.index({ isArchived: 1, nameLower: 1, _id: 1 });
 patientSchema.index({ isArchived: 1, emailLower: 1 });
-patientSchema.index({ isArchived: 1, condition: 1, admissionDate: -1 });
-patientSchema.index({ isArchived: 1, status: 1, admissionDate: -1 });
-patientSchema.index({ isArchived: 1, dateOfBirth: 1 });
+patientSchema.index({ isArchived: 1, condition: 1, admissionDate: -1, _id: -1 });
+patientSchema.index({ isArchived: 1, status: 1, admissionDate: -1, _id: -1 });
+// Age sorts pair dateOfBirth and _id in opposite directions (see patients.routes.ts).
+patientSchema.index({ isArchived: 1, dateOfBirth: 1, _id: -1 });
 
 patientSchema.pre('validate', function () {
   this.nameLower = this.name.toLowerCase();
