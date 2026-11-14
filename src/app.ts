@@ -7,6 +7,7 @@ import { pino } from 'pino';
 import { pinoHttp } from 'pino-http';
 import { env } from './env.js';
 import { errorHandler, notFound } from './middleware.js';
+import { authRouter } from './modules/auth.routes.js';
 
 export const logger = pino({ level: env.NODE_ENV === 'test' ? 'silent' : 'info' });
 
@@ -47,6 +48,8 @@ export function createApp() {
       timestamp: new Date().toISOString(),
     });
   });
+
+  app.use('/api/auth', authRouter);
 
   app.use(notFound);
   app.use(errorHandler);

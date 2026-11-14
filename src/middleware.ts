@@ -1,8 +1,10 @@
 import type { ErrorRequestHandler, RequestHandler } from 'express';
+import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
 import mongoose from 'mongoose';
 import { z } from 'zod';
 import { env } from './env.js';
-import { AppError } from './lib.js';
+import { AppError, AUTH_COOKIE, verifyToken, type Role } from './lib.js';
+import { UserModel } from './models.js';
 
 type Schemas = { body?: z.ZodType; query?: z.ZodType; params?: z.ZodType };
 
@@ -85,3 +87,49 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
     },
   });
 };
+
+/** Verifies the session cookie and reloads the user, so role changes and archiving apply immediately. */
+export const requireAuth: RequestHandler = async (req, _res, next) => {
+  const token = (req.cookies as Record<string, unknown>)[AUTH_COOKIE];
+  const payload = typeof token === 'string' ? verifyToken(token) : null;
+  if (!payload) throw new AppError(401, 'UNAUTHENTICATED', 'Please sign in');
+
+  const user = await UserModel.findById(payload.sub, { name: 1, email: 1, role: 1, isArchived: 1 })
+    .lean()
+    .catch(() => null);
+  if (!user || user.isArchived) throw new AppError(401, 'UNAUTHENTICATED', 'Please sign in');
+
+  req.user = { id: String(user._id), name: user.name, email: user.email, role: user.role };
+  next();
+};
+
+export function requireRole(role: Role): RequestHandler {
+  return (req, _res, next) => {
+    if (req.user?.role !== role) {
+      throw new AppError(403, 'FORBIDDEN', 'You do not have permission to do that');
+    }
+    next();
+  };
+}
+
+// Keyed by IP + email: all traffic arrives through the same proxies, and keying by IP alone would
+// let one person's typos lock out everyone behind the same NAT.
+export const loginLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 5,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const body: unknown = req.body;
+    const email =
+      typeof body === 'object' && body !== null && 'email' in body && typeof body.email === 'string'
+        ? body.email.trim().toLowerCase()
+        : '';
+    return `${ipKeyGenerator(req.ip ?? '')}:${email}`;
+  },
+  // trust proxy is deliberately on (see app.ts); this check would otherwise warn on every boot.
+  validate: { trustProxy: false },
+  handler: (_req, _res, next) => {
+    next(new AppError(429, 'RATE_LIMITED', 'Too many sign-in attempts. Try again in a minute.'));
+  },
+});
