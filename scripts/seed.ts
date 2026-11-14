@@ -1,9 +1,11 @@
 /**
  * Seeds lookups, the demo admin + staff users, ~50 doctors and ~3,000 patients over 12 months.
+ * Names, phone numbers and hospitals are Bangladeshi, to match where the app is used.
  *
  *   npm run seed            safe to re-run: users and lookups are upserted, demo doctors and
  *                           patients are only added when there are none yet
- *   npm run seed -- --reset deletes all doctors and patients first, then re-creates them
+ *   npm run seed -- --reset empties every collection (users, lookups, doctors, patients) first,
+ *                           then re-creates everything
  */
 import { faker } from '@faker-js/faker';
 import bcrypt from 'bcryptjs';
@@ -20,40 +22,119 @@ import {
 import { BCRYPT_COST } from '../src/modules/auth.routes.js';
 
 const SPECIALIZATIONS = [
-  'Cardiology',
-  'Neurology',
-  'Orthopedics',
-  'Pediatrics',
-  'Dermatology',
-  'Oncology',
   'General Medicine',
-  'Psychiatry',
-  'ENT',
+  'Cardiology',
   'Gynecology',
+  'Pediatrics',
+  'Orthopedics',
   'Gastroenterology',
+  'Neurology',
+  'Nephrology',
+  'Dermatology',
+  'ENT',
   'Pulmonology',
+  'Oncology',
+  'Psychiatry',
 ];
+// Ordered roughly by how common they are; weightedPick favours the front of the list.
 const CONDITIONS = [
   'Hypertension',
   'Diabetes',
+  'Dengue Fever',
+  'Gastritis',
   'Asthma',
-  'Fracture',
-  'Migraine',
-  'Flu',
+  'Typhoid',
   'Heart Disease',
   'Arthritis',
+  'COPD',
+  'Chronic Kidney Disease',
+  'Migraine',
+  'Fracture',
   'Infection',
+  'Flu',
   'Other',
 ];
 const HOSPITALS = [
+  'Dhaka Medical College Hospital',
   'Square Hospital',
-  'Evercare Hospital',
+  'Evercare Hospital Dhaka',
   'United Hospital',
   'Labaid Specialized Hospital',
   'Ibn Sina Hospital',
-  'Popular Medical College Hospital',
   'BIRDEM General Hospital',
-  'Dhaka Medical College Hospital',
+  'Popular Medical College Hospital',
+  'National Heart Foundation Hospital',
+  'Green Life Medical College Hospital',
+  'Holy Family Red Crescent Medical College Hospital',
+  'Chattogram Medical College Hospital',
+  'Rajshahi Medical College Hospital',
+  'Sylhet MAG Osmani Medical College Hospital',
+  'Khulna Medical College Hospital',
+];
+
+// Most Bangladeshi names follow one of two patterns, so the pools are split that way.
+// prettier-ignore
+const NAMES = {
+  muslim: {
+    male: [
+      'Rafiqul', 'Shafiqul', 'Aminul', 'Mizanur', 'Habibur', 'Kamrul', 'Ashraful', 'Tanvir',
+      'Imran', 'Sakib', 'Fahim', 'Nafis', 'Arif', 'Mahmud', 'Rakib', 'Shahriar', 'Tahsin',
+      'Rashed', 'Jahid', 'Nayeem', 'Sabbir', 'Mehedi', 'Faisal', 'Riyad', 'Ashik', 'Zubair',
+      'Tariq', 'Sohel', 'Shamim', 'Masud', 'Anisur', 'Mahbub', 'Saiful', 'Rezaul', 'Nazmul',
+      'Shakil', 'Abrar', 'Ehsan', 'Mushfiq', 'Towhid',
+    ],
+    female: [
+      'Nusrat', 'Farzana', 'Sadia', 'Tahmina', 'Ayesha', 'Sharmin', 'Nasrin', 'Rumana',
+      'Jannatul', 'Sumaiya', 'Tanjila', 'Mithila', 'Shirin', 'Mahmuda', 'Fatema', 'Nazia',
+      'Sabrina', 'Afroza', 'Rokeya', 'Taslima', 'Lamia', 'Raisa', 'Anika', 'Tasnim', 'Maliha',
+      'Samia', 'Ishrat', 'Sanjida', 'Nabila', 'Shamima',
+    ],
+    maleSurnames: [
+      'Rahman', 'Hossain', 'Islam', 'Ahmed', 'Chowdhury', 'Khan', 'Uddin', 'Haque', 'Kabir',
+      'Alam', 'Siddique', 'Bhuiyan', 'Mollah', 'Sheikh', 'Talukder', 'Sarkar', 'Karim',
+      'Hasan', 'Mahmud', 'Miah',
+    ],
+    femaleSurnames: [
+      'Akter', 'Begum', 'Khatun', 'Sultana', 'Jahan', 'Rahman', 'Islam', 'Chowdhury',
+      'Hossain', 'Haque', 'Ahmed', 'Khan',
+    ],
+  },
+  hindu: {
+    male: [
+      'Partha', 'Sourav', 'Debashish', 'Pritom', 'Anik', 'Rajib', 'Subrata', 'Amit', 'Biplob',
+      'Shuvo', 'Tapas', 'Uttam', 'Prosenjit', 'Arup', 'Dipankar',
+    ],
+    female: [
+      'Puja', 'Ananya', 'Moumita', 'Rupa', 'Priyanka', 'Shreya', 'Mousumi', 'Tanushree',
+      'Sharmila', 'Dipa', 'Rina', 'Joya',
+    ],
+    maleSurnames: [
+      'Das', 'Roy', 'Saha', 'Paul', 'Ghosh', 'Dey', 'Chakraborty', 'Majumder', 'Sen', 'Bose',
+      'Biswas', 'Kundu', 'Datta',
+    ],
+    femaleSurnames: [
+      'Das', 'Roy', 'Saha', 'Paul', 'Ghosh', 'Dey', 'Chakraborty', 'Majumder', 'Sen', 'Biswas',
+    ],
+  },
+};
+const EMAIL_PROVIDERS = ['gmail.com', 'gmail.com', 'gmail.com', 'yahoo.com', 'outlook.com'];
+// Bangladeshi mobile operator prefixes (013-019).
+const MOBILE_PREFIXES = ['13', '14', '15', '16', '17', '18', '19'];
+const NOTES = [
+  'Follow-up in two weeks.',
+  'Advised a low-salt diet and a daily walk.',
+  'Fasting blood sugar to be checked at the next visit.',
+  'Referred for an ECG and echocardiogram.',
+  'Platelet count being monitored daily.',
+  'Advised plenty of oral fluids and rest.',
+  'X-ray done; cast applied, review in four weeks.',
+  'Family history of diabetes and hypertension.',
+  'Son is the main contact for appointments.',
+  'Discharged with medication for seven days.',
+  'Uses a nebuliser at night.',
+  'Allergic to penicillin.',
+  'Blood pressure stable on current medication.',
+  'Needs a kidney function test before the next dose change.',
 ];
 const DOCTOR_COUNT = 50;
 const PATIENT_COUNT = 3000;
@@ -69,6 +150,28 @@ const seedEnv = z
 
 const reset = process.argv.includes('--reset');
 faker.seed(20261114); // same demo data on every machine
+
+function personName(gender: 'male' | 'female') {
+  const pool = faker.datatype.boolean(0.88) ? NAMES.muslim : NAMES.hindu;
+  const first = faker.helpers.arrayElement(gender === 'male' ? pool.male : pool.female);
+  const last = faker.helpers.arrayElement(
+    gender === 'male' ? pool.maleSurnames : pool.femaleSurnames,
+  );
+  return { first, last };
+}
+
+function mobileNumber() {
+  return `+880 ${faker.helpers.arrayElement(MOBILE_PREFIXES)}${faker.string.numeric(2)}-${faker.string.numeric(6)}`;
+}
+
+function personalEmail(first: string, last: string) {
+  const separator = faker.helpers.arrayElement(['.', '_', '']);
+  const suffix = faker.datatype.boolean(0.6)
+    ? faker.string.numeric({ length: { min: 2, max: 4 } })
+    : '';
+  const provider = faker.helpers.arrayElement(EMAIL_PROVIDERS);
+  return `${first}${separator}${last}${suffix}@${provider}`.toLowerCase();
+}
 
 async function upsertUser(name: string, email: string, password: string, role: 'admin' | 'staff') {
   await UserModel.updateOne(
@@ -111,6 +214,18 @@ function weightedPick<T>(items: readonly T[]): T {
 }
 
 await mongoose.connect(env.MONGODB_URI);
+
+if (reset) {
+  await Promise.all([
+    UserModel.deleteMany({}),
+    SpecializationModel.deleteMany({}),
+    ConditionModel.deleteMany({}),
+    DoctorModel.deleteMany({}),
+    PatientModel.deleteMany({}),
+  ]);
+  console.log('Reset: emptied users, lookups, doctors and patients');
+}
+
 await Promise.all([
   UserModel.syncIndexes(),
   SpecializationModel.syncIndexes(),
@@ -120,17 +235,12 @@ await Promise.all([
 ]);
 
 console.log('Users');
-await upsertUser('Admin User', seedEnv.SEED_ADMIN_EMAIL, seedEnv.SEED_ADMIN_PASSWORD, 'admin');
-await upsertUser('Staff User', seedEnv.SEED_STAFF_EMAIL, seedEnv.SEED_STAFF_PASSWORD, 'staff');
+await upsertUser('Farhana Rahman', seedEnv.SEED_ADMIN_EMAIL, seedEnv.SEED_ADMIN_PASSWORD, 'admin');
+await upsertUser('Tanvir Ahmed', seedEnv.SEED_STAFF_EMAIL, seedEnv.SEED_STAFF_PASSWORD, 'staff');
 
 const specializations = await upsertLookups(SpecializationModel, SPECIALIZATIONS);
 const conditions = await upsertLookups(ConditionModel, CONDITIONS);
 console.log(`Lookups: ${specializations.length} specializations, ${conditions.length} conditions`);
-
-if (reset) {
-  await Promise.all([DoctorModel.deleteMany({}), PatientModel.deleteMany({})]);
-  console.log('Reset: removed existing doctors and patients');
-}
 
 if ((await DoctorModel.estimatedDocumentCount()) > 0) {
   console.log('Doctors already exist, skipping demo data (use --reset to re-create it)');
@@ -138,14 +248,19 @@ if ((await DoctorModel.estimatedDocumentCount()) > 0) {
   const now = new Date();
   const yearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
 
+  // Doctor names and emails are kept unique: the name pools are small enough to repeat.
+  const usedNames = new Set<string>();
   const doctors = Array.from({ length: DOCTOR_COUNT }, () => {
-    const firstName = faker.person.firstName();
-    const lastName = faker.person.lastName();
-    const name = `Dr. ${firstName} ${lastName}`;
-    const email = faker.internet
-      .email({ firstName, lastName, provider: 'doctortracker.dev' })
-      .toLowerCase();
-    const hospital = faker.helpers.arrayElement(HOSPITALS);
+    let first: string;
+    let last: string;
+    do {
+      ({ first, last } = personName(faker.datatype.boolean(0.6) ? 'male' : 'female'));
+    } while (usedNames.has(`${first} ${last}`));
+    usedNames.add(`${first} ${last}`);
+
+    const name = `Dr. ${first} ${last}`;
+    const email = `${first}.${last}@doctortracker.dev`.toLowerCase();
+    const hospital = weightedPick(HOSPITALS);
     const createdAt = faker.date.between({
       from: new Date(now.getFullYear() - 2, 0, 1),
       to: yearAgo,
@@ -157,7 +272,7 @@ if ((await DoctorModel.estimatedDocumentCount()) > 0) {
       specialization: weightedPick(specializations)._id,
       hospital,
       hospitalLower: hospital.toLowerCase(),
-      phone: faker.phone.number({ style: 'international' }),
+      phone: mobileNumber(),
       email,
       emailLower: email,
       patientCount: 0,
@@ -171,16 +286,16 @@ if ((await DoctorModel.estimatedDocumentCount()) > 0) {
 
   const patients = Array.from({ length: PATIENT_COUNT }, () => {
     const gender = faker.helpers.arrayElement(['male', 'female'] as const);
-    const name = faker.person.fullName({ sex: gender });
+    const { first, last } = personName(gender);
+    const name = `${first} ${last}`;
     const doctor = weightedPick(doctorsWithPatients);
     // Admissions grow towards the present, which makes the monthly chart more realistic.
     const admissionDate = new Date(
       yearAgo.getTime() +
         Math.pow(faker.number.float({ min: 0, max: 1 }), 0.8) * (now.getTime() - yearAgo.getTime()),
     );
-    const email = faker.datatype.boolean(0.7)
-      ? faker.internet.email({ firstName: name.split(' ')[0] }).toLowerCase()
-      : null;
+    // Fewer patients than doctors have an email address.
+    const email = faker.datatype.boolean(0.55) ? personalEmail(first, last) : null;
     const isArchived = faker.datatype.boolean(0.04);
     if (!isArchived) doctor.patientCount += 1;
     return {
@@ -188,7 +303,7 @@ if ((await DoctorModel.estimatedDocumentCount()) > 0) {
       nameLower: name.toLowerCase(),
       dateOfBirth: faker.date.birthdate({ mode: 'age', min: 1, max: 92 }),
       gender: faker.datatype.boolean(0.02) ? 'other' : gender,
-      phone: faker.phone.number({ style: 'international' }),
+      phone: mobileNumber(),
       email,
       emailLower: email,
       condition: weightedPick(conditions)._id,
@@ -198,7 +313,7 @@ if ((await DoctorModel.estimatedDocumentCount()) > 0) {
         { value: 'critical', weight: 10 },
       ]),
       admissionDate,
-      notes: faker.datatype.boolean(0.3) ? faker.lorem.sentence() : '',
+      notes: faker.datatype.boolean(0.35) ? faker.helpers.arrayElement(NOTES) : '',
       doctorId: doctor._id,
       isArchived,
       archivedAt: isArchived ? faker.date.between({ from: admissionDate, to: now }) : null,

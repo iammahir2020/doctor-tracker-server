@@ -15,7 +15,7 @@ file starts one.
 cp .env.example .env
 docker compose up -d
 npm install
-npm run seed      # users, lookups, 50 doctors, 3,000 patients (--reset to re-create)
+npm run seed      # users, lookups, 50 doctors, 3,000 patients (--reset empties the database first)
 npm run dev       # http://localhost:4000
 ```
 
