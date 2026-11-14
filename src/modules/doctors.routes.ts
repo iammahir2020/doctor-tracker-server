@@ -13,8 +13,9 @@ import {
   showArchived,
 } from '../lib.js';
 import { requireAuth, requireRole, validate } from '../middleware.js';
-import { DoctorModel, HIDDEN_FIELDS, PatientModel, SpecializationModel } from '../models.js';
+import { DoctorModel, HIDDEN_FIELDS, SpecializationModel } from '../models.js';
 import { assertActiveLookup } from './lookups.routes.js';
+import { archiveDoctor } from './patients.service.js';
 import { doctorPatientsRouter } from './patients.routes.js';
 
 const doctorBody = z.object({
@@ -128,28 +129,16 @@ doctorsRouter.patch(
   },
 );
 
+const archiveBody = z.object({ reassignTo: objectId.optional() }).optional();
+
 doctorsRouter.post(
   '/:id/archive',
   requireRole('admin'),
-  validate({ params: idParams }),
+  validate({ params: idParams, body: archiveBody }),
   async (req, res) => {
-    const doctor = await DoctorModel.findById(req.params.id);
-    if (!doctor) throw new AppError(404, 'NOT_FOUND', 'Doctor not found');
-    // Count the real thing rather than trusting the denormalized counter for a blocking rule.
-    const active = await PatientModel.countDocuments({ doctorId: doctor._id, isArchived: false });
-    if (active > 0) {
-      throw new AppError(
-        409,
-        'CONFLICT',
-        `Reassign or archive their ${active} patient${active === 1 ? '' : 's'} first`,
-        { activePatients: active },
-      );
-    }
-    doctor.isArchived = true;
-    doctor.archivedAt = new Date();
-    doctor.set('archivedBy', req.user?.id);
-    await doctor.save();
-    res.json(doctor);
+    const body = req.body as z.infer<typeof archiveBody>;
+    const result = await archiveDoctor(req.params.id as string, req.user?.id, body?.reassignTo);
+    res.json({ ...result.doctor.toJSON(), reassigned: result.reassigned });
   },
 );
 

@@ -70,13 +70,25 @@ export function updatePatient(id: string, input: Partial<PatientInput>) {
   });
 }
 
-export function setPatientArchived(id: string, archive: boolean, userId: string | undefined) {
+/**
+ * Archive or restore a patient. Restoring onto an archived doctor is refused unless `assignTo`
+ * names an active doctor to restore them under instead.
+ */
+export function setPatientArchived(
+  id: string,
+  archive: boolean,
+  userId: string | undefined,
+  assignTo?: string,
+) {
   return mongoose.connection.transaction(async (session) => {
     const patient = await PatientModel.findById(id).session(session);
     if (!patient) throw new AppError(404, 'NOT_FOUND', 'Patient not found');
     if (patient.isArchived === archive) return patient;
 
-    if (!archive) {
+    if (!archive && assignTo) {
+      await assertActiveDoctor(assignTo, session);
+      patient.set('doctorId', assignTo);
+    } else if (!archive) {
       const doctor = await DoctorModel.exists({ _id: patient.doctorId, isArchived: false }).session(
         session,
       );
@@ -95,5 +107,56 @@ export function setPatientArchived(id: string, archive: boolean, userId: string 
     await patient.save({ session });
     await incDoctor(patient.doctorId, archive ? -1 : 1, session);
     return patient;
+  });
+}
+
+/**
+ * Archives a doctor. A doctor with active patients can't be archived on their own; with
+ * `reassignTo`, those patients move to that doctor first, in the same transaction, so there is
+ * never a moment where patients point at an archived doctor or the counts disagree.
+ */
+export function archiveDoctor(id: string, userId: string | undefined, reassignTo?: string) {
+  return mongoose.connection.transaction(async (session) => {
+    const doctor = await DoctorModel.findById(id).session(session);
+    if (!doctor) throw new AppError(404, 'NOT_FOUND', 'Doctor not found');
+    if (doctor.isArchived) return { doctor, reassigned: 0 };
+
+    // Count the real thing rather than trusting the denormalized counter for a blocking rule.
+    const active = await PatientModel.countDocuments({ doctorId: id, isArchived: false }).session(
+      session,
+    );
+    if (active > 0 && !reassignTo) {
+      throw new AppError(
+        409,
+        'CONFLICT',
+        `Reassign or archive their ${active} patient${active === 1 ? '' : 's'} first`,
+        { activePatients: active },
+      );
+    }
+    if (active > 0 && reassignTo) {
+      if (reassignTo === id) {
+        throw new AppError(400, 'VALIDATION_ERROR', 'Choose a different doctor', [
+          { location: 'body', path: 'reassignTo', message: 'Choose a different doctor' },
+        ]);
+      }
+      await assertActiveDoctor(reassignTo, session);
+      await PatientModel.updateMany(
+        { doctorId: id, isArchived: false },
+        { $set: { doctorId: reassignTo } },
+        { session },
+      );
+      await DoctorModel.updateOne(
+        { _id: reassignTo },
+        { $inc: { patientCount: active } },
+        { session },
+      );
+    }
+
+    doctor.patientCount = 0;
+    doctor.isArchived = true;
+    doctor.archivedAt = new Date();
+    doctor.set('archivedBy', userId);
+    await doctor.save({ session });
+    return { doctor, reassigned: active };
   });
 }

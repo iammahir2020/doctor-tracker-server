@@ -121,9 +121,16 @@ async function listPatients(req: Request, q: ListPatientsQuery) {
 
   // The table links each row to its doctor, so attach names for this page only (≤ 50 ids).
   const doctorIds = [...new Set(rows.map((r) => String(r.doctorId)))];
-  const doctors = await DoctorModel.find({ _id: { $in: doctorIds } }, { name: 1 }).lean();
-  const names = new Map(doctors.map((d) => [String(d._id), d.name]));
-  const data = rows.map((r) => ({ ...r, doctorName: names.get(String(r.doctorId)) ?? null }));
+  const doctors = await DoctorModel.find(
+    { _id: { $in: doctorIds } },
+    { name: 1, isArchived: 1 },
+  ).lean();
+  const byId = new Map(doctors.map((d) => [String(d._id), d]));
+  // doctorArchived lets the client explain up front why a patient can't be restored.
+  const data = rows.map((r) => {
+    const doctor = byId.get(String(r.doctorId));
+    return { ...r, doctorName: doctor?.name ?? null, doctorArchived: doctor?.isArchived ?? false };
+  });
 
   return { data, meta: pageMeta(q.page, q.pageSize, total) };
 }
@@ -138,8 +145,12 @@ patientsRouter.get('/', validate({ query: listPatientsQuery }), async (req, res)
 patientsRouter.get('/:id', validate({ params: idParams }), async (req, res) => {
   const patient = await PatientModel.findById(req.params.id, HIDDEN_FIELDS).lean();
   if (!patient) throw new AppError(404, 'NOT_FOUND', 'Patient not found');
-  const doctor = await DoctorModel.findById(patient.doctorId, { name: 1 }).lean();
-  res.json({ ...patient, doctorName: doctor?.name ?? null });
+  const doctor = await DoctorModel.findById(patient.doctorId, { name: 1, isArchived: 1 }).lean();
+  res.json({
+    ...patient,
+    doctorName: doctor?.name ?? null,
+    doctorArchived: doctor?.isArchived ?? false,
+  });
 });
 
 patientsRouter.post('/', validate({ body: patientBody }), async (req, res) => {
@@ -155,18 +166,29 @@ patientsRouter.patch(
   },
 );
 
-for (const action of ['archive', 'restore'] as const) {
-  patientsRouter.post(
-    `/:id/${action}`,
-    requireRole('admin'),
-    validate({ params: idParams }),
-    async (req, res) => {
-      res.json(
-        await setPatientArchived(req.params.id as string, action === 'archive', req.user?.id),
-      );
-    },
-  );
-}
+patientsRouter.post(
+  '/:id/archive',
+  requireRole('admin'),
+  validate({ params: idParams }),
+  async (req, res) => {
+    res.json(await setPatientArchived(req.params.id as string, true, req.user?.id));
+  },
+);
+
+// Optional doctorId: restore under a different (active) doctor, e.g. when theirs was archived.
+const restoreBody = z.object({ doctorId: objectId.optional() }).optional();
+
+patientsRouter.post(
+  '/:id/restore',
+  requireRole('admin'),
+  validate({ params: idParams, body: restoreBody }),
+  async (req, res) => {
+    const body = req.body as z.infer<typeof restoreBody>;
+    res.json(
+      await setPatientArchived(req.params.id as string, false, req.user?.id, body?.doctorId),
+    );
+  },
+);
 
 // ---------- nested under a doctor: /api/doctors/:id/patients ----------
 

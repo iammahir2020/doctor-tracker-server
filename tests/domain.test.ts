@@ -173,6 +173,39 @@ describe('archiving rules', () => {
     expect(res.body.error.message).toBe('Reassign or archive their 2 patients first');
   });
 
+  it('reassigns active patients and archives the doctor in one step', async () => {
+    const leaving = await createDoctor();
+    const staying = await createDoctor();
+    await createPatient(leaving);
+    await createPatient(leaving);
+    const archivedPatient = await createPatient(leaving);
+    await admin.post(`/api/patients/${archivedPatient}/archive`).expect(200);
+
+    const res = await admin
+      .post(`/api/doctors/${leaving}/archive`)
+      .send({ reassignTo: staying })
+      .expect(200);
+    expect(res.body).toMatchObject({ isArchived: true, patientCount: 0, reassigned: 2 });
+    expect(await patientCount(staying)).toBe(2);
+    expect(await PatientModel.countDocuments({ doctorId: staying, isArchived: false })).toBe(2);
+    // Archived patients keep their original doctor (their record is history).
+    expect(await PatientModel.countDocuments({ doctorId: leaving })).toBe(1);
+  });
+
+  it('refuses to reassign to the same doctor or an archived one', async () => {
+    const doctorId = await createDoctor();
+    const archivedDoctor = await createDoctor();
+    await admin.post(`/api/doctors/${archivedDoctor}/archive`).expect(200);
+    await createPatient(doctorId);
+
+    await admin.post(`/api/doctors/${doctorId}/archive`).send({ reassignTo: doctorId }).expect(400);
+    await admin
+      .post(`/api/doctors/${doctorId}/archive`)
+      .send({ reassignTo: archivedDoctor })
+      .expect(400);
+    expect(await patientCount(doctorId)).toBe(1);
+  });
+
   it('archives an empty doctor and hides them from lists', async () => {
     const doctorId = await createDoctor();
     await admin.post(`/api/doctors/${doctorId}/archive`).expect(200);
@@ -191,6 +224,22 @@ describe('archiving rules', () => {
     await staff.post('/api/patients').send(patientBody(doctorId)).expect(400);
     const restore = await admin.post(`/api/patients/${patientId}/restore`).expect(409);
     expect(restore.body.error.message).toMatch(/doctor is archived/);
+  });
+
+  it('restores a patient under another doctor when theirs is archived', async () => {
+    const oldDoctor = await createDoctor();
+    const newDoctor = await createDoctor();
+    const patientId = await createPatient(oldDoctor);
+    await admin.post(`/api/patients/${patientId}/archive`).expect(200);
+    await admin.post(`/api/doctors/${oldDoctor}/archive`).expect(200);
+
+    const res = await admin
+      .post(`/api/patients/${patientId}/restore`)
+      .send({ doctorId: newDoctor })
+      .expect(200);
+    expect(res.body).toMatchObject({ isArchived: false, doctorId: newDoctor });
+    expect(await patientCount(newDoctor)).toBe(1);
+    expect(await patientCount(oldDoctor)).toBe(0);
   });
 
   it('refuses to edit an archived patient', async () => {
@@ -263,6 +312,7 @@ describe('list queries', () => {
   it('adds the doctor name to each patient row', async () => {
     const res = await staff.get('/api/patients?search=old').expect(200);
     expect(res.body.data[0].doctorName).toBe('Dr. Bob Jones');
+    expect(res.body.data[0].doctorArchived).toBe(false);
   });
 
   it('reports dashboard stats from current data', async () => {
