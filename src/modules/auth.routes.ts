@@ -85,16 +85,10 @@ authRouter.patch(
       ]);
     }
     user.passwordHash = await bcrypt.hash(newPassword, BCRYPT_COST);
-    // Ends every other session, e.g. one using a stolen cookie; this one gets a fresh token below.
+    // Ends every session, e.g. one using a stolen cookie. This one too: the user signs in again.
     user.tokenVersion = (user.tokenVersion ?? 0) + 1;
     await user.save();
-
-    const { token, maxAgeMs } = signToken({
-      sub: String(user._id),
-      role: user.role,
-      ver: user.tokenVersion,
-    });
-    res.cookie(AUTH_COOKIE, token, authCookieOptions(maxAgeMs));
+    res.clearCookie(AUTH_COOKIE, authCookieOptions());
     res.status(204).end();
   },
 );

@@ -102,18 +102,19 @@ describe('auth', () => {
       .expect(200);
   });
 
-  it('ends other sessions on a password change but keeps the current one', async () => {
+  it('ends every session on a password change, the current one included', async () => {
     const { agent } = await signedIn('staff');
     const other = request.agent(app);
     await other.post('/api/auth/login').send({ email: 'staff@test.dev', password: PASSWORD });
     await other.get('/api/auth/me').expect(200);
 
-    await agent
+    const changed = await agent
       .patch('/api/auth/me/password')
       .send({ currentPassword: PASSWORD, newPassword: 'NewPassw0rd!' })
       .expect(204);
+    expect(String(changed.headers['set-cookie'])).toMatch(/dt_token=;/);
 
-    await agent.get('/api/auth/me').expect(200);
+    await agent.get('/api/auth/me').expect(401);
     const res = await other.get('/api/auth/me').expect(401);
     expect(res.body.error.code).toBe('UNAUTHENTICATED');
   });
