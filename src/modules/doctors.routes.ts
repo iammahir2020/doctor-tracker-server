@@ -161,7 +161,7 @@ doctorsRouter.post(
     const doctor = await DoctorModel.findByIdAndUpdate(
       req.params.id,
       { isArchived: false, archivedAt: null, archivedBy: null },
-      { new: true },
+      { returnDocument: 'after' },
     );
     if (!doctor) throw new AppError(404, 'NOT_FOUND', 'Doctor not found');
     res.json(doctor);

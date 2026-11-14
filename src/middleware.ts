@@ -115,6 +115,8 @@ export function requireRole(role: Role): RequestHandler {
 export const loginLimiter = rateLimit({
   windowMs: 60_000,
   limit: 5,
+  // Only failed attempts count, so signing in successfully never uses up the allowance.
+  skipSuccessfulRequests: true,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   keyGenerator: (req) => {

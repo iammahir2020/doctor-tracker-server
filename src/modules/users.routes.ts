@@ -101,7 +101,7 @@ usersRouter.post('/:id/restore', validate({ params: idParams }), async (req, res
   const user = await UserModel.findByIdAndUpdate(
     req.params.id,
     { isArchived: false, archivedAt: null, archivedBy: null },
-    { new: true },
+    { returnDocument: 'after' },
   );
   if (!user) throw new AppError(404, 'NOT_FOUND', 'User not found');
   res.json(user);

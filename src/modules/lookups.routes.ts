@@ -88,7 +88,7 @@ for (const action of ['archive', 'restore'] as const) {
           archivedAt: archive ? new Date() : null,
           archivedBy: archive ? req.user?.id : null,
         },
-        { new: true },
+        { returnDocument: 'after' },
       );
       if (!doc) throw new AppError(404, 'NOT_FOUND', 'Not found');
       res.json(doc);
