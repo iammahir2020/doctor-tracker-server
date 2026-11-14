@@ -37,10 +37,6 @@ export function validate(schemas: Schemas): RequestHandler {
   };
 }
 
-export const objectId = z
-  .string()
-  .refine((v) => mongoose.isValidObjectId(v) && /^[a-f\d]{24}$/i.test(v), 'Invalid id');
-
 export const notFound: RequestHandler = (req, _res, next) => {
   next(new AppError(404, 'NOT_FOUND', `Route ${req.method} ${req.path} not found`));
 };

@@ -1,5 +1,6 @@
 import type { CookieOptions } from 'express';
 import jwt, { type SignOptions } from 'jsonwebtoken';
+import { z } from 'zod';
 import { env } from './env.js';
 
 export type ErrorCode =
@@ -26,6 +27,32 @@ export class AppError extends Error {
 // ---------- pagination + search ----------
 
 export const MAX_PAGE_SIZE = 50;
+
+export const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'Invalid id');
+
+export const idParams = z.object({ id: objectId });
+
+/** Query params shared by every list endpoint. */
+export const listQuery = z.object({
+  search: z.string().trim().max(100).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(20),
+  order: z.enum(['asc', 'desc']).default('desc'),
+  archived: z.stringbool().default(false),
+});
+
+/** `a,b,c` → validated array, for `$in` filters. */
+export function csv<T extends z.ZodType>(item: T) {
+  return z.preprocess(
+    (v) => (typeof v === 'string' ? v.split(',').filter(Boolean) : v),
+    z.array(item).max(50),
+  );
+}
+
+/** Only admins can ask for archived records; for everyone else the flag is ignored. */
+export function showArchived(user: Express.Request['user'], archived: boolean): boolean {
+  return archived && user?.role === 'admin';
+}
 
 export function pageMeta(page: number, pageSize: number, total: number) {
   return { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) };

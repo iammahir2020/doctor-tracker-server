@@ -8,6 +8,11 @@ import { pinoHttp } from 'pino-http';
 import { env } from './env.js';
 import { errorHandler, notFound } from './middleware.js';
 import { authRouter } from './modules/auth.routes.js';
+import { doctorsRouter } from './modules/doctors.routes.js';
+import { lookupsRouter } from './modules/lookups.routes.js';
+import { patientsRouter } from './modules/patients.routes.js';
+import { clearStatsOnWrite, statsRouter } from './modules/stats.routes.js';
+import { usersRouter } from './modules/users.routes.js';
 
 export const logger = pino({ level: env.NODE_ENV === 'test' ? 'silent' : 'info' });
 
@@ -49,7 +54,13 @@ export function createApp() {
     });
   });
 
+  app.use('/api', clearStatsOnWrite);
   app.use('/api/auth', authRouter);
+  app.use('/api/users', usersRouter);
+  app.use('/api/lookups', lookupsRouter);
+  app.use('/api/doctors', doctorsRouter);
+  app.use('/api/patients', patientsRouter);
+  app.use('/api/stats', statsRouter);
 
   app.use(notFound);
   app.use(errorHandler);
