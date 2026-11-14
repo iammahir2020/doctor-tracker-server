@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { Router } from 'express';
 import { z } from 'zod';
-import { AppError, AUTH_COOKIE, authCookieOptions, signToken } from '../lib.js';
+import { AppError, archivedError, AUTH_COOKIE, authCookieOptions, signToken } from '../lib.js';
 import { loginLimiter, requireAuth, validate } from '../middleware.js';
 import { UserModel } from '../models.js';
 
@@ -38,9 +38,11 @@ authRouter.post('/login', loginLimiter, validate({ body: loginBody }), async (re
     .lean();
 
   const ok = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
-  if (!user || !ok || user.isArchived) {
+  if (!user || !ok) {
     throw new AppError(401, 'UNAUTHENTICATED', 'Invalid email or password');
   }
+  // Only revealed after a correct password, so it can't be used to probe which accounts exist.
+  if (user.isArchived) throw archivedError();
 
   const { token, maxAgeMs } = signToken({ sub: String(user._id), role: user.role });
   res.cookie(AUTH_COOKIE, token, authCookieOptions(maxAgeMs));

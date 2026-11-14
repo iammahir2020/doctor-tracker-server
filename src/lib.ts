@@ -10,6 +10,7 @@ export type ErrorCode =
   | 'NOT_FOUND'
   | 'CONFLICT'
   | 'RATE_LIMITED'
+  | 'ACCOUNT_ARCHIVED'
   | 'INTERNAL_ERROR';
 
 export class AppError extends Error {
@@ -22,6 +23,14 @@ export class AppError extends Error {
     super(message);
     this.name = 'AppError';
   }
+}
+
+export function archivedError() {
+  return new AppError(
+    401,
+    'ACCOUNT_ARCHIVED',
+    'Your account has been archived. Please contact an administrator to restore access.',
+  );
 }
 
 // ---------- pagination + search ----------

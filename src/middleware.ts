@@ -3,7 +3,7 @@ import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
 import mongoose from 'mongoose';
 import { z } from 'zod';
 import { env } from './env.js';
-import { AppError, AUTH_COOKIE, verifyToken, type Role } from './lib.js';
+import { AppError, archivedError, AUTH_COOKIE, verifyToken, type Role } from './lib.js';
 import { UserModel } from './models.js';
 
 type Schemas = { body?: z.ZodType; query?: z.ZodType; params?: z.ZodType };
@@ -93,7 +93,9 @@ export const requireAuth: RequestHandler = async (req, _res, next) => {
   const user = await UserModel.findById(payload.sub, { name: 1, email: 1, role: 1, isArchived: 1 })
     .lean()
     .catch(() => null);
-  if (!user || user.isArchived) throw new AppError(401, 'UNAUTHENTICATED', 'Please sign in');
+  if (!user) throw new AppError(401, 'UNAUTHENTICATED', 'Please sign in');
+  // A valid session for an account archived since sign-in: say why, so the client can explain.
+  if (user.isArchived) throw archivedError();
 
   req.user = { id: String(user._id), name: user.name, email: user.email, role: user.role };
   next();
