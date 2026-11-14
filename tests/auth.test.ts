@@ -1,5 +1,7 @@
+import jwt from 'jsonwebtoken';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
+import { env } from '../src/env.js';
 import { UserModel } from '../src/models.js';
 import { app, createUser, PASSWORD, signedIn } from './setup.js';
 
@@ -98,6 +100,54 @@ describe('auth', () => {
       .post('/api/auth/login')
       .send({ email: 'staff@test.dev', password: 'NewPassw0rd!' })
       .expect(200);
+  });
+
+  it('ends other sessions on a password change but keeps the current one', async () => {
+    const { agent } = await signedIn('staff');
+    const other = request.agent(app);
+    await other.post('/api/auth/login').send({ email: 'staff@test.dev', password: PASSWORD });
+    await other.get('/api/auth/me').expect(200);
+
+    await agent
+      .patch('/api/auth/me/password')
+      .send({ currentPassword: PASSWORD, newPassword: 'NewPassw0rd!' })
+      .expect(204);
+
+    await agent.get('/api/auth/me').expect(200);
+    const res = await other.get('/api/auth/me').expect(401);
+    expect(res.body.error.code).toBe('UNAUTHENTICATED');
+  });
+
+  it('accepts tokens issued before token versions existed', async () => {
+    const user = await createUser('staff');
+    await UserModel.collection.updateOne({ _id: user._id }, { $unset: { tokenVersion: '' } });
+    const token = jwt.sign({ sub: String(user._id), role: 'staff' }, env.JWT_SECRET);
+    await request(app).get('/api/auth/me').set('Cookie', `dt_token=${token}`).expect(200);
+  });
+
+  it('ignores a spoofed X-Forwarded-For entry when rate-limiting', async () => {
+    await createUser('staff', 'spoofed@test.dev');
+    // Render appends the real client IP, so only the last entry is trusted.
+    const attempt = (n: number) =>
+      request(app)
+        .post('/api/auth/login')
+        .set('X-Forwarded-For', `1.2.3.${String(n)}, 9.9.9.9`)
+        .send({ email: 'spoofed@test.dev', password: 'wrong-password' });
+    for (let i = 0; i < 5; i++) await attempt(i).expect(401);
+    const res = await attempt(5).expect(429);
+    expect(res.body.error.code).toBe('RATE_LIMITED');
+  });
+
+  it('rate-limits failed logins per email, whatever the IP', async () => {
+    await createUser('staff', 'rotating@test.dev');
+    const attempt = (n: number) =>
+      request(app)
+        .post('/api/auth/login')
+        .set('X-Forwarded-For', `10.0.0.${String(n)}`)
+        .send({ email: 'rotating@test.dev', password: 'wrong-password' });
+    for (let i = 0; i < 10; i++) await attempt(i).expect(401);
+    const res = await attempt(10).expect(429);
+    expect(res.body.error.message).toMatch(/this account/);
   });
 
   it('rate-limits failed logins per IP and email', async () => {

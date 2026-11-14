@@ -19,9 +19,9 @@ export const logger = pino({ level: env.NODE_ENV === 'test' ? 'silent' : 'info' 
 export function createApp() {
   const app = express();
 
-  // Requests arrive through Vercel's rewrite and Render's load balancer; trusting the proxy chain
-  // makes req.ip the real client IP, which the login rate limiter keys on.
-  app.set('trust proxy', true);
+  // Trust only Render's own proxy hop. Trusting the whole chain would let a client pick its
+  // req.ip by sending its own X-Forwarded-For, and the login rate limiter keys on req.ip.
+  app.set('trust proxy', 1);
 
   app.use(helmet());
   app.use(cors({ origin: env.CLIENT_ORIGIN, credentials: true }));

@@ -97,6 +97,8 @@ doctorsRouter.get('/', validate({ query: listDoctorsQuery }), async (req, res) =
   res.json({ data, meta: pageMeta(q.page, q.pageSize, total) });
 });
 
+// Archived doctors stay readable by id on purpose: a patient's detail page still links to its
+// doctor after the doctor is archived. Archiving only hides records from lists and pickers.
 doctorsRouter.get('/:id', validate({ params: idParams }), async (req, res) => {
   const doctor = await DoctorModel.findById(req.params.id, HIDDEN_FIELDS).lean();
   if (!doctor) throw new AppError(404, 'NOT_FOUND', 'Doctor not found');

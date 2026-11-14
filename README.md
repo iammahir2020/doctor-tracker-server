@@ -47,7 +47,8 @@ Errors always look like `{ "error": { "code", "message", "details" } }`, with co
 Business rules: nothing is deleted, only archived. A doctor with active patients can't be archived
 unless `{ reassignTo }` moves them first (one transaction). A patient of an archived doctor can be
 restored under another doctor with `{ doctorId }`. The last admin can't be demoted or archived.
-Login is limited to 5 failed attempts per minute per IP + email.
+Login is limited to 5 failed attempts per minute per IP + email, and 10 per 15 minutes per email
+whatever the IP. Changing the password ends every other session for that user.
 
 ## Indexes
 

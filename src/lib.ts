@@ -92,7 +92,8 @@ export function prefixRegex(term: string): RegExp {
 export const AUTH_COOKIE = 'dt_token';
 
 export type Role = 'admin' | 'staff';
-export type TokenPayload = { sub: string; role: Role };
+// ver must match the user's tokenVersion; bumping it (on a password change) ends every older session.
+export type TokenPayload = { sub: string; role: Role; ver: number };
 
 export function signToken(payload: TokenPayload): { token: string; maxAgeMs: number } {
   const token = jwt.sign(payload, env.JWT_SECRET, {
@@ -108,7 +109,9 @@ export function verifyToken(token: string): TokenPayload | null {
     const decoded = jwt.verify(token, env.JWT_SECRET);
     if (typeof decoded === 'object' && typeof decoded.sub === 'string') {
       const role: unknown = decoded.role;
-      if (role === 'admin' || role === 'staff') return { sub: decoded.sub, role };
+      // Tokens issued before ver existed count as version 0, the default for every user.
+      const ver = typeof decoded.ver === 'number' ? decoded.ver : 0;
+      if (role === 'admin' || role === 'staff') return { sub: decoded.sub, role, ver };
     }
     return null;
   } catch {

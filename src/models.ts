@@ -17,6 +17,7 @@ function hideInternalFields(schema: Schema) {
       delete ret.emailLower;
       delete ret.hospitalLower;
       delete ret.passwordHash;
+      delete ret.tokenVersion;
       return ret;
     },
   });
@@ -35,6 +36,8 @@ const userSchema = new Schema(
     nameLower: { type: String, required: true },
     passwordHash: { type: String, required: true, select: false },
     role: { type: String, enum: ['admin', 'staff'], required: true, default: 'staff' },
+    // Missing means 0: users created before this field existed never got it.
+    tokenVersion: { type: Number },
     ...archiveFields,
   },
   schemaOptions,

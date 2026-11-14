@@ -77,7 +77,7 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
       code: appError.code,
       message: appError.message,
       details: appError.details ?? null,
-      ...(env.NODE_ENV !== 'production' && appError.status >= 500 && err instanceof Error
+      ...(env.NODE_ENV === 'development' && appError.status >= 500 && err instanceof Error
         ? { stack: err.stack }
         : {}),
     },
@@ -90,10 +90,19 @@ export const requireAuth: RequestHandler = async (req, _res, next) => {
   const payload = typeof token === 'string' ? verifyToken(token) : null;
   if (!payload) throw new AppError(401, 'UNAUTHENTICATED', 'Please sign in');
 
-  const user = await UserModel.findById(payload.sub, { name: 1, email: 1, role: 1, isArchived: 1 })
+  const user = await UserModel.findById(payload.sub, {
+    name: 1,
+    email: 1,
+    role: 1,
+    isArchived: 1,
+    tokenVersion: 1,
+  })
     .lean()
     .catch(() => null);
-  if (!user) throw new AppError(401, 'UNAUTHENTICATED', 'Please sign in');
+  // A version mismatch means the password changed after this token was issued.
+  if (!user || (user.tokenVersion ?? 0) !== payload.ver) {
+    throw new AppError(401, 'UNAUTHENTICATED', 'Please sign in');
+  }
   // A valid session for an account archived since sign-in: say why, so the client can explain.
   if (user.isArchived) throw archivedError();
 
@@ -119,17 +128,38 @@ export const loginLimiter = rateLimit({
   skipSuccessfulRequests: true,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
-  keyGenerator: (req) => {
-    const body: unknown = req.body;
-    const email =
-      typeof body === 'object' && body !== null && 'email' in body && typeof body.email === 'string'
-        ? body.email.trim().toLowerCase()
-        : '';
-    return `${ipKeyGenerator(req.ip ?? '')}:${email}`;
-  },
-  // trust proxy is deliberately on (see app.ts); this check would otherwise warn on every boot.
-  validate: { trustProxy: false },
+  keyGenerator: (req) => `${ipKeyGenerator(req.ip ?? '')}:${loginEmail(req)}`,
   handler: (_req, _res, next) => {
     next(new AppError(429, 'RATE_LIMITED', 'Too many sign-in attempts. Try again in a minute.'));
   },
 });
+
+// Keyed by email alone, so rotating IPs (or a spoofed X-Forwarded-For) can't reset the count.
+// Looser than the per-IP limit, so typos never reach it; only sustained guessing does.
+export const loginEmailLimiter = rateLimit({
+  windowMs: 15 * 60_000,
+  limit: 10,
+  skipSuccessfulRequests: true,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  keyGenerator: (req) => `email:${loginEmail(req)}`,
+  handler: (_req, _res, next) => {
+    next(
+      new AppError(
+        429,
+        'RATE_LIMITED',
+        'Too many sign-in attempts for this account. Try again in 15 minutes.',
+      ),
+    );
+  },
+});
+
+function loginEmail(req: Parameters<RequestHandler>[0]): string {
+  const body: unknown = req.body;
+  return typeof body === 'object' &&
+    body !== null &&
+    'email' in body &&
+    typeof body.email === 'string'
+    ? body.email.trim().toLowerCase()
+    : '';
+}

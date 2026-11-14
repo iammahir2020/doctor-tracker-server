@@ -142,6 +142,7 @@ patientsRouter.get('/', validate({ query: listPatientsQuery }), async (req, res)
   res.json(await listPatients(req, req.query as unknown as ListPatientsQuery));
 });
 
+// Like doctors, archived patients stay readable by id; archiving hides them from lists, not records.
 patientsRouter.get('/:id', validate({ params: idParams }), async (req, res) => {
   const patient = await PatientModel.findById(req.params.id, HIDDEN_FIELDS).lean();
   if (!patient) throw new AppError(404, 'NOT_FOUND', 'Patient not found');
