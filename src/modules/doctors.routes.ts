@@ -4,6 +4,7 @@ import { z } from 'zod';
 import {
   AppError,
   csv,
+  dateTo,
   idParams,
   listQuery,
   objectId,
@@ -31,7 +32,7 @@ const listDoctorsQuery = listQuery.extend({
   specialization: csv(objectId).optional(),
   hospital: z.string().trim().max(120).optional(),
   createdFrom: z.coerce.date().optional(),
-  createdTo: z.coerce.date().optional(),
+  createdTo: dateTo.optional(),
   minPatients: z.coerce.number().int().min(0).optional(),
   maxPatients: z.coerce.number().int().min(0).optional(),
   sort: z.enum(['name', 'createdAt', 'patientCount']).default('createdAt'),

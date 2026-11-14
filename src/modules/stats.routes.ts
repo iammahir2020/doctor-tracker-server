@@ -1,10 +1,11 @@
 import { Router, type RequestHandler } from 'express';
 import { z } from 'zod';
+import { dateTo } from '../lib.js';
 import { requireAuth, validate } from '../middleware.js';
 import { DoctorModel, PatientModel } from '../models.js';
 
 const statsQuery = z
-  .object({ from: z.coerce.date().optional(), to: z.coerce.date().optional() })
+  .object({ from: z.coerce.date().optional(), to: dateTo.optional() })
   .refine((q) => !q.from || !q.to || q.from <= q.to, '`from` must be before `to`');
 
 // ---------- tiny TTL cache ----------

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import {
   AppError,
   csv,
+  dateTo,
   idParams,
   listQuery,
   objectId,
@@ -48,7 +49,7 @@ const listPatientsQuery = listQuery.extend({
   doctorId: objectId.optional(),
   gender: z.enum(GENDERS).optional(),
   admittedFrom: z.coerce.date().optional(),
-  admittedTo: z.coerce.date().optional(),
+  admittedTo: dateTo.optional(),
   minAge: z.coerce.number().int().min(0).max(MAX_AGE).optional(),
   maxAge: z.coerce.number().int().min(0).max(MAX_AGE).optional(),
   sort: z.enum(['name', 'admissionDate', 'age']).default('admissionDate'),

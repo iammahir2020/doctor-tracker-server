@@ -41,6 +41,17 @@ export const listQuery = z.object({
   archived: z.stringbool().default(false),
 });
 
+/** A date-only `to` value (yyyy-MM-dd) means "up to the end of that day". */
+export const dateTo = z.coerce.string().transform((v, ctx) => {
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) {
+    ctx.addIssue({ code: 'custom', message: 'Invalid date' });
+    return z.NEVER;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) d.setUTCHours(23, 59, 59, 999);
+  return d;
+});
+
 /** `a,b,c` → validated array, for `$in` filters. */
 export function csv<T extends z.ZodType>(item: T) {
   return z.preprocess(
