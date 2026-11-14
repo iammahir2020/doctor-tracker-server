@@ -28,6 +28,10 @@ export const clearStatsOnWrite: RequestHandler = (req, res, next) => {
 
 // ---------- aggregations ----------
 
+const YEAR_MS = 365.2425 * 24 * 3600 * 1000;
+const AGE_BOUNDARIES = [0, 18, 35, 50, 65, 200];
+const AGE_LABELS = ['0-17', '18-34', '35-49', '50-64', '65+'];
+
 function defaultRange() {
   // End of today, so the default range (and its cache key) is stable for the whole day.
   const now = new Date();
@@ -53,11 +57,16 @@ type Count = { _id: string | null; count: number };
 async function computeStats(from: Date, to: Date) {
   const inRange = { $match: { admissionDate: { $gte: from, $lte: to } } };
   const countBy = (field: string) => ({ $group: { _id: `$${field}`, count: { $sum: 1 } } });
+  // Age in whole years today (birthdays counted exactly enough for grouping and averages).
+  const ageYears = { $divide: [{ $subtract: ['$$NOW', '$dateOfBirth'] }, YEAR_MS] };
 
   const [patientFacets, doctorFacets] = await Promise.all([
     PatientModel.aggregate<{
       current: Count[];
-      admissionsByMonth: Count[];
+      currentAge: { avg: number }[];
+      admissionsByMonth: { _id: { month: string; gender: string }; count: number }[];
+      byAge: { _id: number | string; count: number }[];
+      byGender: Count[];
       byCondition: Count[];
       byStatus: Count[];
       admissionsInRange: { count: number }[];
@@ -66,15 +75,31 @@ async function computeStats(from: Date, to: Date) {
       {
         $facet: {
           current: [countBy('status')],
+          currentAge: [{ $group: { _id: null, avg: { $avg: ageYears } } }],
           admissionsByMonth: [
             inRange,
             {
               $group: {
-                _id: { $dateToString: { format: '%Y-%m', date: '$admissionDate' } },
+                _id: {
+                  month: { $dateToString: { format: '%Y-%m', date: '$admissionDate' } },
+                  gender: '$gender',
+                },
                 count: { $sum: 1 },
               },
             },
           ],
+          byAge: [
+            inRange,
+            {
+              $bucket: {
+                groupBy: { $floor: ageYears },
+                boundaries: AGE_BOUNDARIES,
+                default: 'other',
+                output: { count: { $sum: 1 } },
+              },
+            },
+          ],
+          byGender: [inRange, countBy('gender')],
           byCondition: [inRange, countBy('condition'), { $sort: { count: -1 } }],
           byStatus: [inRange, countBy('status')],
           admissionsInRange: [inRange, { $count: 'count' }],
@@ -117,7 +142,15 @@ async function computeStats(from: Date, to: Date) {
   const p = patientFacets[0];
   const d = doctorFacets[0];
   const current = new Map(p?.current.map((c) => [c._id, c.count]));
-  const byMonth = new Map(p?.admissionsByMonth.map((m) => [m._id, m.count]));
+  // month -> { male, female, other }
+  const byMonth = new Map<string, Record<string, number>>();
+  for (const m of p?.admissionsByMonth ?? []) {
+    const row = byMonth.get(m._id.month) ?? {};
+    row[m._id.gender] = (row[m._id.gender] ?? 0) + m.count;
+    byMonth.set(m._id.month, row);
+  }
+  const ages = new Map(p?.byAge.map((b) => [b._id, b.count]));
+  const genders = new Map(p?.byGender.map((g) => [g._id, g.count]));
   const buckets = new Map(d?.distribution.map((b) => [b._id, b.count]));
   const totals = d?.totals[0];
 
@@ -128,6 +161,7 @@ async function computeStats(from: Date, to: Date) {
       activePatients: [...current.values()].reduce((a, b) => a + b, 0),
       criticalPatients: current.get('critical') ?? 0,
       avgPatientsPerDoctor: Math.round((totals?.avgPatients ?? 0) * 10) / 10,
+      avgPatientAge: Math.round((p?.currentAge[0]?.avg ?? 0) * 10) / 10,
       patientsByStatus: (['active', 'recovered', 'critical'] as const).map((status) => ({
         status,
         count: current.get(status) ?? 0,
@@ -148,9 +182,20 @@ async function computeStats(from: Date, to: Date) {
     inRange: {
       admissions: p?.admissionsInRange[0]?.count ?? 0,
       // Months with no admissions are filled with 0 so the chart has no gaps.
-      admissionsByMonth: monthKeys(from, to).map((month) => ({
-        month,
-        count: byMonth.get(month) ?? 0,
+      admissionsByMonth: monthKeys(from, to).map((month) => {
+        const row = byMonth.get(month) ?? {};
+        const male = row.male ?? 0;
+        const female = row.female ?? 0;
+        const other = row.other ?? 0;
+        return { month, count: male + female + other, male, female, other };
+      }),
+      byAge: AGE_BOUNDARIES.slice(0, -1).map((lower, i) => ({
+        label: AGE_LABELS[i] as string,
+        count: ages.get(lower) ?? 0,
+      })),
+      byGender: (['female', 'male', 'other'] as const).map((gender) => ({
+        gender,
+        count: genders.get(gender) ?? 0,
       })),
       byCondition: (p?.byCondition ?? []).map((c) => ({ condition: c._id, count: c.count })),
       byStatus: (p?.byStatus ?? []).map((s) => ({ status: s._id, count: s.count })),

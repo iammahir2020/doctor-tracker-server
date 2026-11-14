@@ -325,5 +325,22 @@ describe('list queries', () => {
     });
     expect(res.body.inRange.admissions).toBe(3);
     expect(res.body.inRange.admissionsByMonth).toHaveLength(12);
+    // Breakdowns add up: by age group, by gender, and each month's gender split.
+    const sum = (rows: { count: number }[]) => rows.reduce((t, r) => t + r.count, 0);
+    expect(sum(res.body.inRange.byAge)).toBe(3);
+    expect(sum(res.body.inRange.byGender)).toBe(3);
+    const months = res.body.inRange.admissionsByMonth as {
+      count: number;
+      male: number;
+      female: number;
+      other: number;
+    }[];
+    for (const m of months) expect(m.male + m.female + m.other).toBe(m.count);
+    // Ages in the fixture: ~16, ~41, ~76 -> one each in 0-17, 35-49, 65+.
+    const byAge = Object.fromEntries(
+      res.body.inRange.byAge.map((b: { label: string; count: number }) => [b.label, b.count]),
+    );
+    expect(byAge).toMatchObject({ '0-17': 1, '35-49': 1, '65+': 1 });
+    expect(res.body.current.avgPatientAge).toBeGreaterThan(40);
   });
 });
